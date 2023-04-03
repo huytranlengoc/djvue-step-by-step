@@ -92,8 +92,11 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 # Prepare dependencies for pip
 
 ```
-mkdir requirements
+mkdir -p requirements
 touch requirements/{base,dev,test,prod}.txt
+echo "-r base.txt" >! requirements/{dev,test,prod}.txt
+echo "-r requirements/dev.txt" >! requirements.txt
+echo "-r requirements/prod.txt" >! requirements_prod.txt
 pip freeze >! requirements/base.txt
 ```
 
