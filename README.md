@@ -30,7 +30,6 @@ Step by Step guidline in docs:
     - poetry
     - pre-commit
 
-
 # Command Tools
 
     - httpie
