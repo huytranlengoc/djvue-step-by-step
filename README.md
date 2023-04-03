@@ -8,9 +8,12 @@ Step by Step guidline in docs:
     - django-rest-framework
     - django
     - celery
-### VueJs
 
-    - BootstrapVue Argon
+### Vue
+
+    - Vuex
+    - Vue-router
+    - BootstrapVue Argon Template
 
 # Dockerize
 
@@ -19,14 +22,13 @@ Step by Step guidline in docs:
     - Frontend
     - Redis
     - MySQL
-    - Rabbitmq
+    - RabbitMQ
 
 # Tools
 
-    * pip
-    * poetry
-    * pre-commit
-
+    - pip
+    - poetry
+    - pre-commit
 
 # Command Tools
 
