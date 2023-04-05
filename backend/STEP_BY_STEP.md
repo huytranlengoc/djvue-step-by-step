@@ -2,6 +2,7 @@
 
 ```python
 python3 -m venv .venv
+source .venv/bin/activate
 python3 -m pip install --upgrade pip
 ```
 
@@ -168,7 +169,7 @@ class BaseModel(models.Model):
 ```
 
 - We will use `uuid` for primary key for all models.
-- We also prepare some common fields: `created_at`, `updated_at`, `created_by`, `updated_by` to tracking the value of each record.
+- We also add some common fields: `created_at`, `updated_at`, `created_by`, `updated_by` to tracking history of each record.
 
 # Create a new app named `accounts`
 
@@ -205,30 +206,36 @@ touch apps/accounts/managers/user.py
 Add the following content to `apps/accounts/managers/user.py`
 
 ```python
-from django.contrib.auth.models import BaseUserManager
+from django.contrib.auth.base_user import BaseUserManager
 from django.utils.translation import gettext_lazy as _
 
 
 class UserManager(BaseUserManager):
-    def create_user(self, email, password):
+    def create_user(self, email, password, **extra_fields):
         """
         Create and save a User with the given email and password.
         """
         if not email:
             raise ValueError(_("The Email must be set"))
-        user = self.model(email=self.normalize_email(email))
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
         user.set_password(password)
-        user.save(using=self._db)
+        user.save()
         return user
 
-    def create_superuser(self, email, password):
+    def create_superuser(self, email, password, **extra_fields):
         """
         Create and save a SuperUser with the given email and password.
         """
-        user = self.create_user(email, password)
-        user.is_admin = True
-        user.save(using=self._db)
-        return user
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_active", True)
+
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError(_("Superuser must have is_staff=True."))
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError(_("Superuser must have is_superuser=True."))
+        return self.create_user(email, password, **extra_fields)
 ```
 
 Add the following content to `apps/accounts/models/user.py`
@@ -237,17 +244,15 @@ Add the following content to `apps/accounts/models/user.py`
 import uuid
 
 from apps.accounts.managers import UserManager
-from django.contrib.auth.models import AbstractBaseUser
+from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 
-class User(AbstractBaseUser):
+class User(AbstractUser):
     uuid = models.UUIDField(
         primary_key=True, db_index=True, default=uuid.uuid4, unique=True, editable=False
     )
-    is_active = models.BooleanField(default=True)
-    is_admin = models.BooleanField(default=False)
 
     username = None
     email = models.EmailField(_("email address"), max_length=255, unique=True)
@@ -261,16 +266,6 @@ class User(AbstractBaseUser):
 
     def __str__(self):
         return self.email
-
-    def has_perm(self, perm, obj=None):
-        return True
-
-    def has_module_perms(self, app_label):
-        return True
-
-    @property
-    def is_staff(self):
-        return self.is_admin
 ```
 
 Add the following content to `core/settings/base.py`
@@ -285,4 +280,82 @@ From now, we can make migrations and migrate.
 ```bash
 ./manage.py makemigrations
 ./manage.py migrate
+```
+
+# Add User to AdminSite
+
+Create a new file named `apps/accounts/forms.py` and add the following content:
+
+```python
+from django.contrib.auth.forms import UserChangeForm, UserCreationForm
+
+from .models import User
+
+
+class CustomUserCreationForm(UserCreationForm):
+    class Meta(UserCreationForm):
+        model = User
+        fields = ("email", "first_name", "last_name")
+
+
+class CustomUserChangeForm(UserChangeForm):
+    class Meta:
+        model = User
+        fields = ("email", "first_name", "last_name")
+```
+
+Then add the following content to `apps/accounts/admin.py`
+
+```python
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
+
+from .forms import CustomUserChangeForm, CustomUserCreationForm
+from .models import User
+
+
+class CustomUserAdmin(UserAdmin):
+    add_form = CustomUserCreationForm
+    form = CustomUserChangeForm
+    model = User
+    list_display = ["email", "first_name", "last_name", "is_staff", "is_active"]
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "email",
+                    "first_name",
+                    "last_name",
+                )
+            },
+        ),
+        ("Permissions", {"fields": ("is_staff", "is_active")}),
+    )
+    add_fieldsets = (
+        (
+            None,
+            {
+                "classes": ("wide",),
+                "fields": (
+                    "email",
+                    "first_name",
+                    "last_name",
+                    "password1",
+                    "password2",
+                    "is_staff",
+                    "is_active",
+                ),
+            },
+        ),
+    )
+    search_fields = [
+        "email",
+        "first_name",
+        "last_name",
+    ]
+    ordering = ["email", "first_name", "last_name"]
+
+
+admin.site.register(User, CustomUserAdmin)
 ```
