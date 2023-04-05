@@ -1,0 +1,46 @@
+version: "3.3"
+services:
+
+  # mysql 8.0.30
+  djvue_mysql8:
+    restart: always
+    container_name: "${MYSQL_NAME}"
+    image: "arm64v8/mysql:8.0.30"
+    ports:
+      - "${MYSQL_PORT}:3306"
+    environment:
+      MYSQL_DATABASE: "${MYSQL_DATABASE}"
+      MYSQL_USER: "${MYSQL_USER}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    volumes:
+      - djvue-mysql-data:/var/lib/mysql
+
+  # redis
+  djvue_redis:
+    restart: always
+    container_name: "${REDIS_NAME}"
+    image: arm64v8/redis
+    ports:
+      - ${REDIS_PORT}:6379
+    volumes:
+      - djvue-redis-data:/data
+
+  # backend
+  djvue_backend:
+    container_name: "${BACKEND_NAME}"
+    build:
+      context: ../backend/
+      dockerfile: Dockerfile
+    volumes:
+      - ../backend:/app
+    ports:
+      - ${BACKEND_PORT}:8000
+    depends_on:
+      - djvue_mysql8
+      - djvue_redis
+
+volumes:
+  djvue-mysql-data:
+  djvue-redis-data:
