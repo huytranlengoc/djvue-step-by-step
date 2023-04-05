@@ -23,7 +23,7 @@ Run the first time:
 pre-commit run --all-files
 ```
 
-## Uninstallation pre-commit (in-case)
+### Uninstallation pre-commit (in-case)
 
 ```bash
 pre-commit uninstall
