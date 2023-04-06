@@ -196,7 +196,7 @@ touch users/managers/user.py
 Add the following content to `users/managers/user.py`
 
 ```python
-from django.contrib.auth.models import BaseUserManager
+from django.contrib.auth.base_user import BaseUserManager
 from django.utils.translation import gettext_lazy as _
 
 
@@ -210,7 +210,7 @@ class UserManager(BaseUserManager):
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
-        user.save(using=self._db)
+        user.save()
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
