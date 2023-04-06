@@ -102,32 +102,26 @@ pip freeze >! requirements/base.txt
 # Create a new app named `api`
 
 ```bash
-django-admin startapp api ./apps/api
-```
-
-Update file `apps/common/apps.py`
-
-```
-name = "apps.common"
+django-admin startapp api
 ```
 
 Update file `core/settings/base.py` like this:
 
 ```
 LOCAL_APPS = [
-    "apps.common",
+    "api",
 ]
 ```
 
 # Create a common model
 
 ```bash
-mkdir -p apps/common/models
-mv apps/common/models.py apps/common/models/base.py
-echo "from .base import BaseModel" > apps/common/models/__init__.py
+mkdir -p api/models
+mv api/models.py api/models/base.py
+echo "from .base import BaseModel" > api/models/__init__.py
 ```
 
-Add the following content to `apps/common/models/base.py`
+Add the following content to `api/models/base.py`
 
 ```python
 import uuid
