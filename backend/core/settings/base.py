@@ -42,8 +42,7 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = []
 
 LOCAL_APPS = [
-    "apps.common",
-    "apps.accounts",
+    "users",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -132,4 +131,4 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Customize user model
-AUTH_USER_MODEL = "accounts.User"
+AUTH_USER_MODEL = "users.User"

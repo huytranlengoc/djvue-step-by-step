@@ -24,7 +24,6 @@ django-admin startproject core .
 Structure:
 
 ```
-├── STEP_BY_STEP.md
 ├── core
 │   ├── __init__.py
 │   ├── asgi.py
@@ -32,7 +31,6 @@ Structure:
 │   ├── urls.py
 │   └── wsgi.py
 └── manage.py
-
 ```
 
 # Prepare setting files
@@ -101,11 +99,10 @@ echo "-r requirements/prod.txt" >! requirements_prod.txt
 pip freeze >! requirements/base.txt
 ```
 
-# Create a new app named `common`
+# Create a new app named `api`
 
 ```bash
-mkdir -p apps/common
-django-admin startapp common ./apps/common
+django-admin startapp api ./apps/api
 ```
 
 Update file `apps/common/apps.py`
@@ -171,39 +168,32 @@ class BaseModel(models.Model):
 - We will use `uuid` for primary key for all models.
 - We also add some common fields: `created_at`, `updated_at`, `created_by`, `updated_by` to tracking history of each record.
 
-# Create a new app named `accounts`
+# Create a new app named `users`
 
 ```bash
-mkdir -p apps/accounts
-django-admin startapp accounts ./apps/accounts
-```
-
-Update file `apps/accounts/apps.py`
-
-```
-name = "apps.accounts"
+django-admin startapp users
 ```
 
 Update file `core/settings/base.py` like this:
 
 ```
 LOCAL_APPS = [
-    "apps.accounts",
+    "users",
 ]
 ```
 
 # Customize User model
 
 ```bash
-mkdir -p apps/accounts/models
-mv apps/accounts/models.py apps/accounts/models/user.py
-echo "from .user import User" > apps/accounts/models/__init__.py
-mkdir -p apps/accounts/managers
-echo "from .user import UserManager" > apps/accounts/managers/__init__.py
-touch apps/accounts/managers/user.py
+mkdir -p users/models
+mv users/models.py users/models/user.py
+echo "from .user import User" > users/models/__init__.py
+mkdir -p users/managers
+echo "from .user import UserManager" > users/managers/__init__.py
+touch users/managers/user.py
 ```
 
-Add the following content to `apps/accounts/managers/user.py`
+Add the following content to `users/managers/user.py`
 
 ```python
 from django.contrib.auth.base_user import BaseUserManager
@@ -211,7 +201,7 @@ from django.utils.translation import gettext_lazy as _
 
 
 class UserManager(BaseUserManager):
-    def create_user(self, email, password, **extra_fields):
+    def create_user(self, email, password=None, **extra_fields):
         """
         Create and save a User with the given email and password.
         """
@@ -223,30 +213,30 @@ class UserManager(BaseUserManager):
         user.save()
         return user
 
-    def create_superuser(self, email, password, **extra_fields):
+    def create_superuser(self, email, password=None, **extra_fields):
         """
         Create and save a SuperUser with the given email and password.
         """
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        extra_fields.setdefault("is_active", True)
 
         if extra_fields.get("is_staff") is not True:
             raise ValueError(_("Superuser must have is_staff=True."))
         if extra_fields.get("is_superuser") is not True:
             raise ValueError(_("Superuser must have is_superuser=True."))
+
         return self.create_user(email, password, **extra_fields)
 ```
 
-Add the following content to `apps/accounts/models/user.py`
+Add the following content to `users/models/user.py`
 
 ```python
 import uuid
 
-from apps.accounts.managers import UserManager
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from users.managers import UserManager
 
 
 class User(AbstractUser):
@@ -256,13 +246,16 @@ class User(AbstractUser):
 
     username = None
     email = models.EmailField(_("email address"), max_length=255, unique=True)
-    first_name = models.CharField(max_length=255)
-    last_name = models.CharField(max_length=255)
+    first_name = models.CharField(_("first name"), max_length=150)
+    last_name = models.CharField(_("last name"), max_length=150)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 
     objects = UserManager()
+
+    class Meta:
+        db_table = "users"
 
     def __str__(self):
         return self.email
@@ -272,7 +265,7 @@ Add the following content to `core/settings/base.py`
 
 ```python
 # Customize user model
-AUTH_USER_MODEL = "accounts.User"
+AUTH_USER_MODEL = "users.User"
 ```
 
 From now, we can make migrations and migrate.
@@ -282,9 +275,62 @@ From now, we can make migrations and migrate.
 ./manage.py migrate
 ```
 
+Create a testcase by adding the following content to `users/tests.py`:
+
+```python
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+
+
+class UsersManagersTests(TestCase):
+    def test_create_user(self):
+        User = get_user_model()
+        user = User.objects.create_user(email="normal@user.com", password="foo")
+        self.assertEqual(user.email, "normal@user.com")
+        self.assertTrue(user.is_active)
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        try:
+            # username is None for the AbstractUser option
+            # username does not exist for the AbstractBaseUser option
+            self.assertIsNone(user.username)
+        except AttributeError:
+            pass
+        with self.assertRaises(TypeError):
+            User.objects.create_user()
+        with self.assertRaises(ValueError):
+            User.objects.create_user(email="")
+        with self.assertRaises(ValueError):
+            User.objects.create_user(email="", password="foo")
+
+    def test_create_superuser(self):
+        User = get_user_model()
+        admin_user = User.objects.create_superuser("super@user.com", "foo")
+        self.assertEqual(admin_user.email, "super@user.com")
+        self.assertTrue(admin_user.is_active)
+        self.assertTrue(admin_user.is_staff)
+        self.assertTrue(admin_user.is_superuser)
+        try:
+            # username is None for the AbstractUser option
+            # username does not exist for the AbstractBaseUser option
+            self.assertIsNone(admin_user.username)
+        except AttributeError:
+            pass
+        with self.assertRaises(ValueError):
+            User.objects.create_superuser(
+                email="super@user.com", password="foo", is_superuser=False
+            )
+```
+
+At this point, we can run a simple test:
+
+```bash
+./manage.py test users
+```
+
 # Add User to AdminSite
 
-Create a new file named `apps/accounts/forms.py` and add the following content:
+Create a new file named `users/forms.py` and add the following content:
 
 ```python
 from django.contrib.auth.forms import UserChangeForm, UserCreationForm
@@ -304,20 +350,23 @@ class CustomUserChangeForm(UserChangeForm):
         fields = ("email", "first_name", "last_name")
 ```
 
-Then add the following content to `apps/accounts/admin.py`
+Then add the following content to `users/admin.py`
 
 ```python
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.models import Group
 
 from .forms import CustomUserChangeForm, CustomUserCreationForm
 from .models import User
 
 
 class CustomUserAdmin(UserAdmin):
+    # The forms to add and change user instances
     add_form = CustomUserCreationForm
     form = CustomUserChangeForm
-    model = User
+
+    # when display the user model in the admin panel, the following fields are shown
     list_display = ["email", "first_name", "last_name", "is_staff", "is_active"]
     fieldsets = (
         (
@@ -332,6 +381,8 @@ class CustomUserAdmin(UserAdmin):
         ),
         ("Permissions", {"fields": ("is_staff", "is_active")}),
     )
+
+    # when creating a new user, the password fields are shown
     add_fieldsets = (
         (
             None,
@@ -355,7 +406,9 @@ class CustomUserAdmin(UserAdmin):
         "last_name",
     ]
     ordering = ["email", "first_name", "last_name"]
+    filter_horizontal = []
 
 
 admin.site.register(User, CustomUserAdmin)
+admin.site.unregister(Group)
 ```
